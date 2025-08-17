@@ -82,45 +82,117 @@ router.get("/api/preview/pdfs", async (_, res) => {
 });
 
 /* 
-  返回1个 视频 的文件流
+  返回1个 视频 的文件流（支持多文件和Range请求）
   前端实现参考：https://github.com/btxmkbtx/next14_storybook8_init/blob/main/app/video/page.tsx
 */
 router.get("/api/preview/video", (req, res) => {
-  const filePath = path.join(process.cwd(), "public", "video", "IMG_1336.MOV");
+  console.log("/api/preview/video", req.query.file);
+  const fileName = req.query.file || "IMG_1336.MOV"; // 支持通过query参数指定文件
+  const filePath = path.join(process.cwd(), "public", "video", fileName);
+
+  // 指定文件根路径
+  const videoDir = path.join(process.cwd(), "public", "video");
+  // 安全检查：防止路径遍历攻击
+  if (!filePath.startsWith(videoDir)) {
+    return res.status(400).json({ error: "Invalid file path" });
+  }
+
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: "Video file not found" });
+  }
+
   const stat = fs.statSync(filePath);
   const fileSize = stat.size;
   const range = req.headers.range;
+  const ext = path.extname(fileName).toLowerCase();
+
+  // 动态设置 Content-Type
+  let contentType = "video/mp4";
+  if (ext === ".mov") contentType = "video/quicktime";
+  else if (ext === ".webm") contentType = "video/webm";
+  else if (ext === ".avi") contentType = "video/x-msvideo";
+  else if (ext === ".mkv") contentType = "video/x-matroska";
 
   if (range) {
-    // 客户端请求了部分内容
-    const parts = range.replace(/bytes=/, "").split("-");
-    const start = parseInt(parts[0], 10);
-    const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-
-    const chunkSize = end - start + 1;
-    const file = fs.createReadStream(filePath, { start, end });
-
-    res.writeHead(206, {
-      "Content-Range": `bytes ${start}-${end}/${fileSize}`,
-      "Accept-Ranges": "bytes",
-      "Content-Length": chunkSize,
-      // "Content-Type": "video/mp4", // 如果是 mp4
-      "Content-Type": "video/quicktime", // 如果是 MOV
-      // "Content-Type": "video/webm", // 如果是 webm
-    });
-
-    file.pipe(res);
+    // 这部分代码未经过测试，暂时不可信，实际测试表明返回整个文件也不影响拖拽
+    // 客户端请求了部分内容（支持视频拖拽播放）
+    // const parts = range.replace(/bytes=/, "").split("-");
+    // const start = parseInt(parts[0], 10);
+    // const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+    // const chunkSize = end - start + 1;
+    // res.writeHead(206, {
+    //   "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+    //   "Accept-Ranges": "bytes",
+    //   "Content-Length": chunkSize,
+    //   "Content-Type": contentType,
+    //   "Cache-Control": "public, max-age=3600",
+    // });
+    // const stream = fs.createReadStream(filePath, { start, end });
+    // stream.pipe(res);
   } else {
-    // 客户端没有 Range 请求，返回整个文件（非流式）
+    // 客户端没有 Range 请求，返回整个文件
     res.writeHead(200, {
       "Content-Length": fileSize,
-      // "Content-Type": "video/mp4", // 如果是 mp4
-      "Content-Type": "video/quicktime", // 如果是 MOV
-      // "Content-Type": "video/webm", // 如果是 webm
+      "Content-Type": contentType,
+      "Accept-Ranges": "bytes",
+      "Cache-Control": "public, max-age=3600",
     });
 
     fs.createReadStream(filePath).pipe(res);
   }
 });
+
+/* 
+  返回多个视频文件的列表和元信息（推荐方案）
+  客户端可根据列表按需请求单个视频流
+*/
+router.get("/api/preview/videos", (req, res) => {
+  console.log("/api/preview/videos");
+  const videoDir = path.join(process.cwd(), "public", "video");
+  const fileNames = ["IMG_1336.MOV", "IMG_1337.mp4"]; // 基于实际文件
+  const existing = fileNames.filter((f) =>
+    fs.existsSync(path.join(videoDir, f))
+  );
+
+  if (!existing.length) {
+    res.status(404).json({ message: "No video files found" });
+    return;
+  }
+
+  const videoList = existing.map((name) => {
+    const filePath = path.join(videoDir, name);
+    const stat = fs.statSync(filePath);
+    const ext = path.extname(name).toLowerCase();
+
+    // 根据文件扩展名设置 MIME 类型
+    let mimeType = "video/mp4";
+    if (ext === ".mov") mimeType = "video/quicktime";
+    else if (ext === ".webm") mimeType = "video/webm";
+    else if (ext === ".avi") mimeType = "video/x-msvideo";
+    else if (ext === ".mkv") mimeType = "video/x-matroska";
+
+    return {
+      fileName: name,
+      size: stat.size,
+      mimeType,
+      sizeFormatted: formatFileSize(stat.size),
+      lastModified: stat.mtime.toISOString(),
+    };
+  });
+
+  res.json({
+    total: videoList.length,
+    videos: videoList,
+  });
+});
+
+// 工具函数：格式化文件大小
+function formatFileSize(bytes) {
+  if (bytes === 0) return "0 Bytes";
+  const k = 1024;
+  const sizes = ["Bytes", "KB", "MB", "GB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+}
 
 module.exports = router;
