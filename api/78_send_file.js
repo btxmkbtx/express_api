@@ -145,6 +145,7 @@ router.get("/api/preview/video", (req, res) => {
 /* 
   返回多个视频文件的列表和元信息（推荐方案）
   客户端可根据列表按需请求单个视频流
+  前端实现参考：https://github.com/btxmkbtx/next14_storybook8_init/blob/main/app/videos/page.tsx
 */
 router.get("/api/preview/videos", (req, res) => {
   console.log("/api/preview/videos");
