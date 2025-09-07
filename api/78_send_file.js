@@ -4,6 +4,23 @@ const fs = require("fs");
 const router = express.Router();
 
 /* 
+  返回1个 图片 的文件流
+  前端实现参考：https://github.com/btxmkbtx/next14_storybook8_init/blob/main/app/picture/page.tsx
+*/
+router.get("/api/preview/picture", (req, res) => {
+  const fileName = req.query.filename || "sample01.png"; // 支持通过query参数指定文件
+  console.log("/api/preview/picture", req.query);
+  const filePath = path.join(process.cwd(), "public", "img", fileName);
+
+  // res.setHeader("Content-Type", `image/png`);
+  res.setHeader("Content-Type", `image/${path.extname(fileName).slice(1)}`);
+  res.setHeader("Content-Disposition", `inline; filename=${fileName}`);
+
+  const stream = fs.createReadStream(filePath);
+  stream.pipe(res);
+});
+
+/* 
   返回1个 PDF 的文件流
   前端实现参考：https://github.com/btxmkbtx/next14_storybook8_init/blob/main/app/pdf/page.tsx
 */
