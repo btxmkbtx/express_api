@@ -29,6 +29,7 @@ const storage = multer.diskStorage({
 // 使用Multer中间件
 const upload = multer({ storage: storage });
 // 定义文件上传路由
+// 给家电维修那个项目用的上传测试API
 router.post("/api/orderers/order-img", upload.single("image"), (req, res) => {
   console.log("/api/orderers/upload/single:", req.headers["x-access-token"]);
   setTimeout(() => {
@@ -48,6 +49,30 @@ router.post("/api/orderers/order-img", upload.single("image"), (req, res) => {
     // 发送响应
     res.status(200).json({
       img_name: file.originalname,
+    });
+  }, 2000);
+});
+
+// 给地图那个项目用的上传测试API
+router.post("/api/upload", upload.single("file"), (req, res) => {
+  console.log("/api/upload/single:", req.headers["x-access-token"]);
+  setTimeout(() => {
+    // 文件信息保存在req.file中
+    const file = req.file;
+    if (!file) {
+      return res.status(400).send("No file uploaded.");
+    }
+    // if (file.size > 1024 * 1024) {
+    //   return res.status(400).send("File size over.");
+    // }
+    console.log("Uploaded file:", file);
+    if (file.originalname === "error1.jpg") {
+      return res.status(400).send("File error.");
+    }
+
+    // 发送响应
+    res.status(200).json({
+      fileName: file.originalname,
     });
   }, 2000);
 });
